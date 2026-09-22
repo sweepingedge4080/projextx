@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Winners — SparkLotto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="brand-logo" style="background:linear-gradient(to top right, #f59e0b, #ef4444);">
+          <i data-lucide="trophy" style="width:20px;height:20px;color:white;"></i>
+        </div>
+        <div>
+          <h1 class="brand-title">RECENT <span class="neon">WINNERS</span></h1>
+          <p class="live-pill"><span class="live-dot"></span> provably fair draws</p>
+        </div>
+      </div>
+      <button class="wallet-btn" onclick="window.location.href='/'">
+        <i data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+        <span>Back</span>
+      </button>
+    </header>
+
+    <main class="app-main">
+      <section>
+        <div class="section-header">
+          <h3 class="section-title">Last 20 Draws</h3>
+          <span style="font-size:11px;color:#64748b;">SHA-256 verified</span>
+        </div>
+        <div id="winners-list" style="display:flex;flex-direction:column;gap:10px;">
+          <p style="color:#64748b;text-align:center;padding:40px 0;">Loading…</p>
+        </div>
+      </section>
+
+      <section class="fair-badge">
+        <div class="fair-icon">
+          <i data-lucide="shield-check" style="width:20px;height:20px;color:var(--neon);"></i>
+        </div>
+        <div>
+          <h4 class="fair-title">How fairness works</h4>
+          <p class="fair-text">
+            1. All tickets locked → we publish <code>sha256(seed + tickets)</code>.<br />
+            2. 5 seconds later → we pick a winner using the seed.<br />
+            3. We reveal the seed. Anyone can recompute the hash and verify.
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn" onclick="window.location.href='/'">
+        <i data-lucide="grid" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Rooms</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/tickets'">
+        <i data-lucide="ticket" style="width:20px;height:20px;"></i>
+        <span class="nav-label">My Tickets</span>
+      </button>
+      <button class="nav-btn active">
+        <i data-lucide="trophy" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Winners</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/account'">
+        <i data-lucide="user" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Account</span>
+      </button>
+    </nav>
+  </div>
+
+  <script>
+    function toast(msg, type = 'info') {
+      const c = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      c.appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function loadWinners() {
+      try {
+        const res = await fetch('/api/rooms/history');
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+        render(data.winners || []);
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    function render(winners) {
+      const list = document.getElementById('winners-list');
+      if (!winners.length) {
+        list.innerHTML = '<p style="color:#64748b;text-align:center;padding:40px 0;">No draws yet. Be the first!</p>';
+        return;
+      }
+
+      list.innerHTML = winners.map(w => {
+        const ago = timeAgo(new Date(w.drawnAt));
+        return `
+          <div style="background:var(--bg-card);border:1px solid var(--bg-border);border-radius:16px;padding:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <div class="winner-avatar" style="background:rgba(16,185,129,0.2);color:var(--neon);width:32px;height:32px;">$${w.tier}</div>
+                <div>
+                  <div style="font-size:13px;font-weight:700;color:white;">${escapeHtml(w.username)}</div>
+                  <div style="font-size:10px;color:#64748b;">${escapeHtml(w.ticketCode)}</div>
+                </div>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:14px;font-weight:800;color:var(--neon);">+${w.payout.toFixed(2)}</div>
+                <div style="font-size:10px;color:#64748b;">USDT · ${ago}</div>
+              </div>
+            </div>
+            <div style="font-size:10px;color:#475569;font-family:monospace;word-break:break-all;padding-top:8px;border-top:1px solid var(--bg-border);">
+              seed: ${escapeHtml((w.revealedSeed || '').slice(0, 32))}…
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function timeAgo(date) {
+      const s = Math.floor((Date.now() - date.getTime()) / 1000);
+      if (s < 60) return s + 's ago';
+      if (s < 3600) return Math.floor(s / 60) + 'm ago';
+      if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+      return Math.floor(s / 86400) + 'd ago';
+    }
+
+    loadWinners();
+    lucide.createIcons();
+    setInterval(loadWinners, 15000);
+  </script>
+</body>
+</html>
