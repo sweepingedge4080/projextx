@@ -13,6 +13,7 @@ const state = {
   heroRoom: null,
 };
 
+// ---------- API HELPER ----------
 async function api(path, opts = {}) {
   const headers = { 'Content-Type': 'application/json' };
   if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
@@ -28,6 +29,9 @@ async function api(path, opts = {}) {
   return data;
 }
 
+// ============================================
+// SPARKLOTTO — GLOBAL API
+// ============================================
 window.SparkLotto = {
   navigate(path) {
     window.location.href = path;
@@ -175,7 +179,7 @@ window.SparkLotto = {
 };
 
 // ============================================
-// RENDERING
+// RENDER HELPERS
 // ============================================
 
 function renderHeader() {
@@ -196,18 +200,33 @@ function renderHeader() {
   }
 }
 
+// ✅ FIXED: renderHero always updates DOM, including placeholder state
 function renderHero() {
   const room = state.heroRoom;
-  if (!room) return;
-
-  document.getElementById('hero-tier').textContent = `$${room.tier} ROOM`;
-  document.getElementById('hero-jackpot').textContent = room.prizePool.toFixed(2);
-  document.getElementById('hero-players').textContent = `${room.filled} / ${room.capacity} players`;
-  document.getElementById('hero-progress').style.width = (room.filled / room.capacity) * 100 + '%';
-
   const timerEl = document.getElementById('hero-timer');
-  const buyBtn = document.getElementById('hero-buy-btn');
+  const buyBtn  = document.getElementById('hero-buy-btn');
   const buyText = document.getElementById('hero-buy-text');
+  const tierEl  = document.getElementById('hero-tier');
+  const jackEl  = document.getElementById('hero-jackpot');
+  const playersEl = document.getElementById('hero-players');
+  const progressEl = document.getElementById('hero-progress');
+
+  // No room loaded yet — show loading state
+  if (!room) {
+    tierEl.textContent = '$-- ROOM';
+    jackEl.textContent = '0.00';
+    playersEl.textContent = '0 / 10 players';
+    progressEl.style.width = '0%';
+    timerEl.textContent = 'Loading…';
+    buyBtn.disabled = true;
+    buyText.textContent = 'Loading…';
+    return;
+  }
+
+  tierEl.textContent = `$${room.tier} ROOM`;
+  jackEl.textContent = Number(room.prizePool || 0).toFixed(2);
+  playersEl.textContent = `${room.filled} / ${room.capacity} players`;
+  progressEl.style.width = ((room.filled / room.capacity) * 100) + '%';
 
   if (room.status === 'drawing') {
     timerEl.textContent = 'Drawing now…';
@@ -232,6 +251,11 @@ function renderTierGrid() {
   const grid = document.getElementById('tier-grid');
   grid.innerHTML = '';
 
+  if (!state.rooms.length) {
+    grid.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:#64748b;padding:20px 0;">Loading rooms…</p>';
+    return;
+  }
+
   for (const room of state.rooms) {
     const card = document.createElement('button');
     card.className = 'tier-card';
@@ -242,7 +266,7 @@ function renderTierGrid() {
     const pct = Math.round((room.filled / room.capacity) * 100);
     card.innerHTML = `
       <span class="tier-label">$${room.tier}</span>
-      <span class="tier-price">${room.prizePool.toFixed(2)}</span>
+      <span class="tier-price">${Number(room.prizePool || 0).toFixed(2)}</span>
       <span class="tier-meta">${room.filled}/${room.capacity} (${pct}%)</span>
     `;
 
@@ -253,7 +277,7 @@ function renderTierGrid() {
 
 function renderWinners(winners) {
   const list = document.getElementById('winners-list');
-  if (!winners.length) {
+  if (!winners || !winners.length) {
     list.innerHTML = `<div class="winner-row"><span style="color:#64748b;">Waiting for first draw…</span></div>`;
     return;
   }
@@ -267,14 +291,19 @@ function renderWinners(winners) {
         <div class="winner-avatar" style="background:rgba(99,102,241,0.2);color:#818cf8;">$${w.tier}</div>
         <span class="winner-name">${escapeHtml(w.username)}</span>
       </div>
-      <span class="winner-amount">+${w.payout.toFixed(2)} USDT</span>
+      <span class="winner-amount">+${Number(w.payout).toFixed(2)} USDT</span>
     `;
     list.appendChild(row);
   }
 }
 
+// ============================================
+// TOAST + CONFETTI
+// ============================================
+
 function toast(message, type = 'info') {
   const container = document.getElementById('toast-container');
+  if (!container) return;
   const el = document.createElement('div');
   el.className = `toast ${type}`;
   el.textContent = message;
@@ -295,6 +324,7 @@ function escapeHtml(str) {
 
 function fireConfetti() {
   const canvas = document.getElementById('confetti-canvas');
+  if (!canvas) return;
   canvas.style.display = 'block';
   const ctx = canvas.getContext('2d');
   canvas.width = window.innerWidth;
@@ -329,19 +359,20 @@ function fireConfetti() {
 }
 
 // ============================================
-// DATA
+// DATA LOADERS
 // ============================================
 
 async function loadRooms() {
   try {
     const data = await api('/api/rooms');
-    state.rooms = data.rooms;
+    state.rooms = data.rooms || [];
 
+    // Pick default hero room
     if (!state.heroRoom || !state.rooms.find((r) => r.tier === state.heroRoom.tier)) {
-      state.heroRoom = state.rooms.find((r) => r.tier === 10) || state.rooms[0];
+      state.heroRoom = state.rooms.find((r) => r.tier === 10) || state.rooms[0] || null;
       if (state.heroRoom) state.activeTier = state.heroRoom.tier;
     } else {
-      state.heroRoom = state.rooms.find((r) => r.tier === state.heroRoom.tier);
+      state.heroRoom = state.rooms.find((r) => r.tier === state.heroRoom.tier) || null;
     }
 
     renderHeader();
@@ -349,13 +380,15 @@ async function loadRooms() {
     renderTierGrid();
   } catch (err) {
     console.error('loadRooms error:', err);
+    renderHero(); // force loading state
+    renderTierGrid();
   }
 }
 
 async function loadWinners() {
   try {
     const data = await api('/api/rooms/history');
-    renderWinners(data.winners);
+    renderWinners(data.winners || []);
   } catch (err) {
     console.error('loadWinners error:', err);
   }
@@ -381,7 +414,7 @@ async function restoreSession() {
 }
 
 // ============================================
-// SOCKETS
+// SOCKET EVENTS
 // ============================================
 
 socket.on('connect', () => console.log('🔌 socket connected'));
@@ -427,16 +460,21 @@ socket.on('room:closed', (payload) => {
 // ============================================
 
 document.addEventListener('DOMContentLoaded', async () => {
+  // Age gate
   if (!localStorage.getItem('sparklotto_age_ok')) {
     document.getElementById('age-modal').classList.remove('hidden');
   } else {
     document.getElementById('age-modal').classList.add('hidden');
   }
 
+  // Render hero immediately in loading state so it never looks empty
+  renderHero();
+
   await restoreSession();
   await loadRooms();
   await loadWinners();
 
+  // Fallback polling
   setInterval(loadWinners, 15000);
   setInterval(loadRooms, 20000);
 });
