@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>My Tickets — SparkLotto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="brand-logo">
+          <i data-lucide="ticket" style="width:20px;height:20px;color:white;"></i>
+        </div>
+        <div>
+          <h1 class="brand-title">MY <span class="neon">TICKETS</span></h1>
+          <p class="live-pill"><span id="tickets-count">Loading…</span></p>
+        </div>
+      </div>
+      <button class="wallet-btn" onclick="window.location.href='/'">
+        <i data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+        <span>Back</span>
+      </button>
+    </header>
+
+    <main class="app-main">
+      <div style="display:flex;gap:8px;margin-bottom:16px;">
+        <button class="btn-secondary" style="margin:0;border-color:var(--accent);color:var(--accent);" onclick="filterTickets('active')" id="tab-active">Active</button>
+        <button class="btn-secondary" style="margin:0;" onclick="filterTickets('won')" id="tab-won">Won</button>
+        <button class="btn-secondary" style="margin:0;" onclick="filterTickets('all')" id="tab-all">All</button>
+      </div>
+
+      <div id="tickets-list" style="display:flex;flex-direction:column;gap:10px;">
+        <p style="color:#64748b;text-align:center;padding:40px 0;">Loading…</p>
+      </div>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn" onclick="window.location.href='/'">
+        <i data-lucide="grid" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Rooms</span>
+      </button>
+      <button class="nav-btn active">
+        <i data-lucide="ticket" style="width:20px;height:20px;"></i>
+        <span class="nav-label">My Tickets</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/winners'">
+        <i data-lucide="trophy" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Winners</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/account'">
+        <i data-lucide="user" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Account</span>
+      </button>
+    </nav>
+  </div>
+
+  <script>
+    const TOKEN = localStorage.getItem('sparklotto_token');
+    let allTickets = [];
+    let currentFilter = 'active';
+
+    function toast(msg, type = 'info') {
+      const c = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      c.appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function loadTickets() {
+      if (!TOKEN) {
+        document.getElementById('tickets-list').innerHTML =
+          '<p style="color:#f87171;text-align:center;padding:40px 0;">Please sign in to view tickets.</p>';
+        return;
+      }
+      try {
+        const res = await fetch('/api/tickets/mine', {
+          headers: { 'Authorization': 'Bearer ' + TOKEN },
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        allTickets = data.tickets || [];
+        document.getElementById('tickets-count').textContent = `${allTickets.length} tickets`;
+        render();
+      } catch (err) {
+        toast(err.message, 'error');
+      }
+    }
+
+    function filterTickets(f) {
+      currentFilter = f;
+      ['active','won','all'].forEach(t => {
+        const el = document.getElementById('tab-' + t);
+        el.style.borderColor = t === f ? 'var(--accent)' : 'var(--bg-border)';
+        el.style.color = t === f ? 'var(--accent)' : 'var(--text-dim)';
+      });
+      render();
+    }
+
+    function render() {
+      const list = document.getElementById('tickets-list');
+      let filtered = allTickets;
+
+      if (currentFilter === 'active') {
+        filtered = allTickets.filter(t => t.room?.status === 'filling' || t.room?.status === 'drawing');
+      } else if (currentFilter === 'won') {
+        filtered = allTickets.filter(t => t.isWinner);
+      }
+
+      if (!filtered.length) {
+        list.innerHTML = `<p style="color:#64748b;text-align:center;padding:40px 0;">No tickets here yet.</p>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map(t => {
+        const room = t.room || {};
+        const status = t.isWinner ? 'WON' :
+                      room.status === 'closed' ? 'LOST' :
+                      room.status === 'drawing' ? 'DRAWING' : 'ACTIVE';
+        const color = t.isWinner ? 'var(--neon)' :
+                      room.status === 'closed' ? '#64748b' :
+                      room.status === 'drawing' ? 'var(--purple)' : 'var(--accent)';
+
+        return `
+          <div style="background:var(--bg-card);border:1px solid var(--bg-border);border-radius:16px;padding:14px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+              <span style="font-size:14px;font-weight:800;color:white;">${escapeHtml(t.ticketCode)}</span>
+              <span style="font-size:11px;font-weight:700;color:${color};padding:3px 10px;border-radius:999px;background:${color}22;">${status}</span>
+            </div>
+            <div style="display:flex;justify-content:space-between;font-size:12px;color:#94a3b8;">
+              <span>$${t.tier} room · ${room.filled || 0}/${room.capacity || 0} players</span>
+              <span>${t.isWinner && t.wonAmount ? '+ ' + t.wonAmount.toFixed(2) + ' USDT' : ''}</span>
+            </div>
+            <div style="font-size:10px;color:#475569;margin-top:6px;">
+              Joined ${new Date(t.createdAt).toLocaleString()}
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    loadTickets();
+    lucide.createIcons();
+    setInterval(loadTickets, 10000);
+  </script>
+</body>
+</html>
