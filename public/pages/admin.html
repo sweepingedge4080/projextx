@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Admin — SparkLotto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .app-shell { max-width: 900px !important; height: auto !important; min-height: 100vh; border-radius: 0; border: none; }
+  </style>
+</head>
+<body>
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="brand-logo" style="background:linear-gradient(to top right, #ef4444, #f59e0b);">
+          <i data-lucide="shield" style="width:20px;height:20px;color:white;"></i>
+        </div>
+        <div>
+          <h1 class="brand-title">ADMIN <span class="neon">PANEL</span></h1>
+          <p class="live-pill">SparkLotto control room</p>
+        </div>
+      </div>
+      <button class="wallet-btn" onclick="window.location.href='/'">
+        <i data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+        <span>Back to app</span>
+      </button>
+    </header>
+
+    <main class="app-main" style="padding-bottom:40px;">
+      <section>
+        <h3 class="section-title" style="margin-bottom:12px;">📊 Live Stats</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;">
+          <div class="winners-card" style="text-align:center;"><div style="font-size:10px;color:#64748b;">USERS</div><div id="stat-users" style="font-size:20px;font-weight:800;color:white;">—</div></div>
+          <div class="winners-card" style="text-align:center;"><div style="font-size:10px;color:#64748b;">ACTIVE ROOMS</div><div id="stat-rooms" style="font-size:20px;font-weight:800;color:white;">—</div></div>
+          <div class="winners-card" style="text-align:center;"><div style="font-size:10px;color:#64748b;">TICKETS</div><div id="stat-tickets" style="font-size:20px;font-weight:800;color:white;">—</div></div>
+          <div class="winners-card" style="text-align:center;"><div style="font-size:10px;color:#64748b;">DRAWS</div><div id="stat-draws" style="font-size:20px;font-weight:800;color:white;">—</div></div>
+          <div class="winners-card" style="text-align:center;"><div style="font-size:10px;color:#64748b;">REVENUE</div><div id="stat-revenue" style="font-size:20px;font-weight:800;color:var(--neon);">—</div></div>
+          <div class="winners-card" style="text-align:center;"><div style="font-size:10px;color:#64748b;">IN-HOUSE USDT</div><div id="stat-balance" style="font-size:20px;font-weight:800;color:white;">—</div></div>
+        </div>
+      </section>
+
+      <section>
+        <div class="section-header">
+          <h3 class="section-title">💰 Pending Transactions</h3>
+          <span style="font-size:11px;color:#64748b;" id="pending-count">—</span>
+        </div>
+        <div id="pending-list" style="display:flex;flex-direction:column;gap:8px;">
+          <p style="color:#64748b;text-align:center;padding:20px 0;">Loading…</p>
+        </div>
+      </section>
+
+      <section class="winners-card">
+        <div class="section-header" style="margin-bottom:12px;">
+          <span style="font-size:13px;font-weight:700;color:white;">
+            <i data-lucide="gift" style="width:14px;height:14px;display:inline;vertical-align:-2px;color:var(--purple);"></i>
+            Comp a Free Ticket
+          </span>
+        </div>
+        <input id="ft-username" class="input" placeholder="Username" />
+        <input id="ft-room-id" class="input" placeholder="Room ID (24-char hex)" />
+        <button class="btn-primary" onclick="freeTicket()">Inject Ticket</button>
+      </section>
+
+      <section class="winners-card">
+        <div class="section-header" style="margin-bottom:12px;">
+          <span style="font-size:13px;font-weight:700;color:white;">
+            <i data-lucide="zap" style="width:14px;height:14px;display:inline;vertical-align:-2px;color:#f59e0b;"></i>
+            Force Draw a Room
+          </span>
+        </div>
+        <input id="fd-room-id" class="input" placeholder="Room ID (24-char hex)" />
+        <button class="btn-primary" onclick="forceDraw()" style="background:linear-gradient(to right, #f59e0b, #ef4444);">Force Draw Now</button>
+      </section>
+
+      <section>
+        <div class="section-header">
+          <h3 class="section-title">👥 Users</h3>
+          <span style="font-size:11px;color:#64748b;" id="users-count">—</span>
+        </div>
+        <div id="users-list" style="display:flex;flex-direction:column;gap:6px;">
+          <p style="color:#64748b;text-align:center;padding:20px 0;">Loading…</p>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    const TOKEN = localStorage.getItem('sparklotto_token');
+    if (!TOKEN) window.location.href = '/';
+
+    function toast(msg, type = 'info') {
+      const c = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      c.appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    async function loadStats() {
+      try {
+        const s = await api('/api/admin/stats');
+        document.getElementById('stat-users').textContent = s.totalUsers;
+        document.getElementById('stat-rooms').textContent = s.activeRooms;
+        document.getElementById('stat-tickets').textContent = s.totalTickets;
+        document.getElementById('stat-draws').textContent = s.totalDraws;
+        document.getElementById('stat-revenue').textContent = s.revenue.toFixed(2);
+        document.getElementById('stat-balance').textContent = s.totalBalance.toFixed(2);
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function loadPending() {
+      try {
+        const data = await api('/api/admin/transactions/pending');
+        document.getElementById('pending-count').textContent = `${data.transactions.length} pending`;
+        const list = document.getElementById('pending-list');
+
+        if (!data.transactions.length) {
+          list.innerHTML = '<p style="color:#64748b;text-align:center;padding:20px 0;">No pending transactions 🎉</p>';
+          return;
+        }
+
+        list.innerHTML = data.transactions.map(t => `
+          <div style="background:var(--bg-card);border:1px solid var(--bg-border);border-radius:12px;padding:12px;">
+            <div style="display:flex;justify-content:space-between;margin-bottom:6px;">
+              <div>
+                <div style="font-weight:700;color:white;font-size:12px;">${t.type.toUpperCase()} · ${t.amount.toFixed(2)} USDT</div>
+                <div style="font-size:10px;color:#64748b;">user: ${escapeHtml(t.userId?.username || 'unknown')} · ${escapeHtml(t.userId?.email || '')}</div>
+              </div>
+              <div style="font-size:10px;color:#64748b;">${new Date(t.createdAt).toLocaleString()}</div>
+            </div>
+            ${t.walletAddress ? `<div style="font-size:10px;color:#94a3b8;font-family:monospace;word-break:break-all;margin-bottom:6px;">→ ${escapeHtml(t.walletAddress)}</div>` : ''}
+            ${t.txHash ? `<div style="font-size:10px;color:#94a3b8;font-family:monospace;word-break:break-all;margin-bottom:6px;">tx: ${escapeHtml(t.txHash)}</div>` : ''}
+            <div style="display:flex;gap:6px;">
+              ${t.type === 'deposit' ? `<button class="btn-primary" style="padding:8px;font-size:11px;" onclick="approveDeposit('${t._id}')">✅ Approve</button>` : ''}
+              ${t.type === 'withdraw' ? `<button class="btn-primary" style="padding:8px;font-size:11px;" onclick="completeWithdraw('${t._id}')">✅ Mark Paid</button>` : ''}
+              <button class="btn-secondary" style="padding:8px;font-size:11px;margin:0;color:#f87171;border-color:#7f1d1d;" onclick="rejectTx('${t._id}')">✖ Reject</button>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function loadUsers() {
+      try {
+        const data = await api('/api/admin/users');
+        document.getElementById('users-count').textContent = `${data.users.length} users`;
+        const list = document.getElementById('users-list');
+        list.innerHTML = data.users.map(u => `
+          <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-card);padding:8px 12px;border-radius:10px;font-size:11px;">
+            <div>
+              <div style="font-weight:700;color:white;">${escapeHtml(u.username)} ${u.isAdmin ? '⭐' : ''} ${u.isBanned ? '🚫' : ''}</div>
+              <div style="color:#64748b;">${escapeHtml(u.email)}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color:var(--neon);font-weight:700;">${u.balance.toFixed(2)} USDT</div>
+              <button onclick="toggleBan('${u._id}')" style="font-size:10px;color:${u.isBanned ? 'var(--neon)' : '#f87171'};background:none;border:none;cursor:pointer;margin-top:2px;">
+                ${u.isBanned ? 'Unban' : 'Ban'}
+              </button>
+            </div>
+          </div>
+        `).join('');
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function approveDeposit(id) {
+      try { await api(`/api/admin/transactions/${id}/approve-deposit`, { method: 'POST' }); toast('Deposit approved', 'success'); loadPending(); loadStats(); }
+      catch (err) { toast(err.message, 'error'); }
+    }
+    async function completeWithdraw(id) {
+      try { await api(`/api/admin/transactions/${id}/complete-withdraw`, { method: 'POST' }); toast('Withdrawal marked complete', 'success'); loadPending(); loadStats(); }
+      catch (err) { toast(err.message, 'error'); }
+    }
+    async function rejectTx(id) {
+      try { await api(`/api/admin/transactions/${id}/reject`, { method: 'POST' }); toast('Transaction rejected', 'success'); loadPending(); loadStats(); }
+      catch (err) { toast(err.message, 'error'); }
+    }
+    async function toggleBan(userId) {
+      try { await api(`/api/admin/users/${userId}/toggle-ban`, { method: 'POST' }); loadUsers(); }
+      catch (err) { toast(err.message, 'error'); }
+    }
+    async function freeTicket() {
+      const username = document.getElementById('ft-username').value.trim();
+      const roomId = document.getElementById('ft-room-id').value.trim();
+      if (!username || !roomId) return toast('Both fields required', 'error');
+      try {
+        await api('/api/admin/free-ticket', { method: 'POST', body: { username, roomId } });
+        toast('Free ticket injected', 'success');
+        document.getElementById('ft-username').value = '';
+        document.getElementById('ft-room-id').value = '';
+      } catch (err) { toast(err.message, 'error'); }
+    }
+    async function forceDraw() {
+      const roomId = document.getElementById('fd-room-id').value.trim();
+      if (!roomId) return toast('Room ID required', 'error');
+      try { await api(`/api/admin/rooms/${roomId}/force-draw`, { method: 'POST' }); toast('Draw forced', 'success'); loadStats(); }
+      catch (err) { toast(err.message, 'error'); }
+    }
+
+    loadStats();
+    loadPending();
+    loadUsers();
+    lucide.createIcons();
+    setInterval(loadStats, 5000);
+    setInterval(loadPending, 10000);
+  </script>
+</body>
+</html>
