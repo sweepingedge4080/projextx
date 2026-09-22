@@ -96,6 +96,7 @@ exports.depositAddress = async (_req, res) => {
   res.json({
     TRC20: process.env.DEPOSIT_WALLET_USDT_TRC20 || 'not-configured',
     ERC20: process.env.DEPOSIT_WALLET_USDT_ERC20 || 'not-configured',
-    note: 'Send USDT to one of these addresses, then submit the transaction hash in the app.',
+    BEP20: process.env.DEPOSIT_WALLET_USDT_BEP20 || 'not-configured',
+    note: 'Send USDT on the matching network, then submit the transaction hash in the app.',
   });
 };
