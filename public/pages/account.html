@@ -151,17 +151,27 @@
     async function loadAddresses() {
       try {
         const data = await api('/api/wallet/deposit-address');
-        document.getElementById('deposit-addresses').innerHTML = `
-          <div style="background:var(--bg-dark);border:1px solid var(--bg-border);border-radius:12px;padding:10px;margin-bottom:8px;font-size:11px;">
-            <div style="color:#94a3b8;margin-bottom:4px;">TRC20 (Tron — low fees):</div>
-            <div style="color:white;font-family:monospace;word-break:break-all;">${escapeHtml(data.TRC20)}</div>
-          </div>
-          <div style="background:var(--bg-dark);border:1px solid var(--bg-border);border-radius:12px;padding:10px;margin-bottom:8px;font-size:11px;">
-            <div style="color:#94a3b8;margin-bottom:4px;">ERC20 (Ethereum — higher fees):</div>
-            <div style="color:white;font-family:monospace;word-break:break-all;">${escapeHtml(data.ERC20)}</div>
-          </div>
-        `;
-      } catch (err) { toast(err.message, 'error'); }
+
+        function addrCard(label, subtitle, address) {
+          return `
+            <div style="background:var(--bg-dark);border:1px solid var(--bg-border);border-radius:12px;padding:10px;margin-bottom:8px;font-size:11px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <div style="color:#94a3b8;">${label}</div>
+                <div style="color:#475569;font-size:10px;">${subtitle}</div>
+              </div>
+              <div style="color:white;font-family:monospace;word-break:break-all;user-select:all;">${escapeHtml(address)}</div>
+            </div>
+          `;
+        }
+
+        document.getElementById('deposit-addresses').innerHTML =
+          addrCard('TRC20', 'Tron — lowest fees', data.TRC20) +
+          addrCard('BEP20', 'BSC — low fees', data.BEP20) +
+          addrCard('ERC20', 'Ethereum — highest fees', data.ERC20);
+
+      } catch (err) {
+        toast(err.message, 'error');
+      }
     }
 
     async function loadTransactions() {
