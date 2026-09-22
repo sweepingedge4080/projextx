@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="theme-color" content="#0B0F19" />
+  <title>SparkLotto — Fast USDT Lottery</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <div id="toast-container" class="toast-container"></div>
+  <canvas id="confetti-canvas"></canvas>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="brand-logo">
+          <i data-lucide="zap" style="width:20px;height:20px;color:white;fill:white;"></i>
+        </div>
+        <div>
+          <h1 class="brand-title">SPARK<span class="neon">LOTTO</span></h1>
+          <p class="live-pill">
+            <span class="live-dot"></span>
+            <span id="header-status">Loading rooms…</span>
+          </p>
+        </div>
+      </div>
+      <button id="wallet-btn" class="wallet-btn" onclick="SparkLotto.openAuthModal()">
+        <i data-lucide="wallet" style="width:14px;height:14px;color:var(--neon);"></i>
+        <span id="wallet-display">Sign In</span>
+      </button>
+    </header>
+
+    <main class="app-main">
+      <div class="hero" id="hero">
+        <div class="hero-orb-1"></div>
+        <div class="hero-orb-2"></div>
+        <div class="hero-content">
+          <div class="hero-badges">
+            <span class="round-badge">
+              <i data-lucide="clock" style="width:12px;height:12px;"></i>
+              <span id="hero-tier">$10 ROOM</span>
+            </span>
+            <span class="timer-text" id="hero-timer">Waiting for players</span>
+          </div>
+          <div style="text-align:center;margin:16px 0;">
+            <p class="jackpot-label">Current Room Jackpot</p>
+            <h2 class="jackpot-amount">
+              <span id="hero-jackpot">0.00</span>
+              <span class="unit">USDT</span>
+            </h2>
+            <p class="jackpot-sub" id="hero-players">0 / 10 players</p>
+          </div>
+          <div class="progress-bar">
+            <div class="progress-fill" id="hero-progress"></div>
+          </div>
+          <button class="buy-btn" id="hero-buy-btn" onclick="SparkLotto.buyCurrentTicket()">
+            <span id="hero-buy-text">Join Room</span>
+            <i data-lucide="arrow-right" style="width:16px;height:16px;"></i>
+          </button>
+        </div>
+      </div>
+
+      <section>
+        <div class="section-header">
+          <h3 class="section-title">Active Rooms</h3>
+          <a href="/winners" class="section-link">Recent Draws</a>
+        </div>
+        <div class="tier-grid" id="tier-grid"></div>
+      </section>
+
+      <section class="winners-card">
+        <div class="section-header" style="margin-bottom:8px;">
+          <span style="font-size:12px;font-weight:700;color:#cbd5e1;display:flex;align-items:center;gap:6px;">
+            <i data-lucide="award" style="width:14px;height:14px;color:#fbbf24;"></i>
+            Recent Winners
+          </span>
+          <span style="font-size:10px;color:#64748b;" id="winners-updated">live</span>
+        </div>
+        <div id="winners-list">
+          <div class="winner-row"><span style="color:#64748b;">Waiting for first draw…</span></div>
+        </div>
+      </section>
+
+      <section class="fair-badge">
+        <div class="fair-icon">
+          <i data-lucide="shield-check" style="width:20px;height:20px;color:var(--neon);"></i>
+        </div>
+        <div>
+          <h4 class="fair-title">Provably Fair & Verifiable</h4>
+          <p class="fair-text">
+            Every draw publishes a SHA-256 commit before picking, and reveals the seed after.
+            <a href="/winners" style="color:var(--neon);text-decoration:underline;">Verify any draw →</a>
+          </p>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn active" onclick="window.location.href='/'">
+        <i data-lucide="grid" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Rooms</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/tickets'">
+        <i data-lucide="ticket" style="width:20px;height:20px;"></i>
+        <span class="nav-label">My Tickets</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/winners'">
+        <i data-lucide="trophy" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Winners</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/account'">
+        <i data-lucide="user" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Account</span>
+      </button>
+    </nav>
+  </div>
+
+  <div id="auth-modal" class="modal-backdrop hidden">
+    <div class="modal">
+      <h3 id="auth-title">Sign In</h3>
+      <div id="auth-fields-login">
+        <input id="login-username" class="input" placeholder="Username" />
+        <input id="login-password" class="input" type="password" placeholder="Password" />
+        <button id="login-submit" class="btn-primary" onclick="SparkLotto.doLogin()">Sign In</button>
+        <button class="btn-secondary" onclick="SparkLotto.showRegister()">Create Account</button>
+      </div>
+      <div id="auth-fields-register" class="hidden">
+        <input id="reg-username" class="input" placeholder="Username (3-20 chars)" />
+        <input id="reg-email" class="input" type="email" placeholder="Email" />
+        <input id="reg-password" class="input" type="password" placeholder="Password (6+ chars)" />
+        <button id="reg-submit" class="btn-primary" onclick="SparkLotto.doRegister()">Create Account</button>
+        <button class="btn-secondary" onclick="SparkLotto.showLogin()">Back to Sign In</button>
+      </div>
+      <button class="btn-secondary" style="border:none;" onclick="SparkLotto.closeAuthModal()">Cancel</button>
+    </div>
+  </div>
+
+  <div id="age-modal" class="modal-backdrop">
+    <div class="modal">
+      <h3>🔞 Age Verification</h3>
+      <p style="color:#94a3b8;font-size:13px;line-height:1.5;margin-bottom:16px;">
+        SparkLotto is an 18+ platform. Please gamble responsibly. By continuing you confirm you are of legal age in your jurisdiction.
+      </p>
+      <button class="btn-primary" onclick="SparkLotto.confirmAge()">I am 18 or older</button>
+      <button class="btn-secondary" onclick="window.location.href='https://www.google.com'">Exit</button>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="/app.js"></script>
+  <script>lucide.createIcons();</script>
+</body>
+</html>
