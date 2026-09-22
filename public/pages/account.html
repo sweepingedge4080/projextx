@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Account — SparkLotto</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+
+  <div id="toast-container" class="toast-container"></div>
+
+  <div class="app-shell">
+    <header class="app-header">
+      <div style="display:flex;align-items:center;gap:8px;">
+        <div class="brand-logo" style="background:linear-gradient(to top right, #6366F1, #8B5CF6);">
+          <i data-lucide="user" style="width:20px;height:20px;color:white;"></i>
+        </div>
+        <div>
+          <h1 class="brand-title">MY <span class="neon">ACCOUNT</span></h1>
+          <p class="live-pill"><span id="acc-username">…</span></p>
+        </div>
+      </div>
+      <button class="wallet-btn" onclick="window.location.href='/'">
+        <i data-lucide="arrow-left" style="width:14px;height:14px;"></i>
+        <span>Back</span>
+      </button>
+    </header>
+
+    <main class="app-main">
+      <div class="hero">
+        <div class="hero-orb-1"></div>
+        <div class="hero-orb-2"></div>
+        <div class="hero-content" style="text-align:center;">
+          <p class="jackpot-label">Available Balance</p>
+          <h2 class="jackpot-amount">
+            <span id="acc-balance">0.00</span>
+            <span class="unit">USDT</span>
+          </h2>
+          <p class="jackpot-sub" id="acc-stats">Won: 0 · Deposited: 0 · Withdrawn: 0</p>
+        </div>
+      </div>
+
+      <section class="winners-card">
+        <div class="section-header" style="margin-bottom:12px;">
+          <span style="font-size:13px;font-weight:700;color:white;">
+            <i data-lucide="arrow-down-circle" style="width:14px;height:14px;display:inline;vertical-align:-2px;color:var(--neon);"></i>
+            Deposit USDT
+          </span>
+        </div>
+        <p style="font-size:11px;color:#94a3b8;margin-bottom:12px;line-height:1.5;">
+          Send USDT to one of the addresses below, then paste the transaction hash. Support verifies manually (usually &lt; 30 min).
+        </p>
+        <div id="deposit-addresses">
+          <div style="background:var(--bg-dark);border:1px solid var(--bg-border);border-radius:12px;padding:10px;margin-bottom:8px;font-size:11px;color:#94a3b8;">Loading addresses…</div>
+        </div>
+        <input id="dep-amount" class="input" type="number" step="0.01" placeholder="Amount (USDT)" />
+        <input id="dep-tx" class="input" placeholder="Transaction hash" />
+        <button class="btn-primary" onclick="submitDeposit()">Submit Deposit Request</button>
+      </section>
+
+      <section class="winners-card">
+        <div class="section-header" style="margin-bottom:12px;">
+          <span style="font-size:13px;font-weight:700;color:white;">
+            <i data-lucide="arrow-up-circle" style="width:14px;height:14px;display:inline;vertical-align:-2px;color:var(--purple);"></i>
+            Withdraw USDT
+          </span>
+        </div>
+        <input id="wd-amount" class="input" type="number" step="0.01" placeholder="Amount (USDT)" />
+        <input id="wd-wallet" class="input" placeholder="Destination wallet address (TRC20 / ERC20)" />
+        <button class="btn-primary" onclick="submitWithdraw()">Request Withdrawal</button>
+      </section>
+
+      <section>
+        <div class="section-header">
+          <h3 class="section-title">Transaction History</h3>
+        </div>
+        <div id="tx-list" style="display:flex;flex-direction:column;gap:8px;">
+          <p style="color:#64748b;text-align:center;padding:20px 0;">Loading…</p>
+        </div>
+      </section>
+
+      <section style="padding-top:20px;">
+        <button class="btn-secondary" onclick="doLogout()" style="color:#f87171;border-color:#7f1d1d;">Sign Out</button>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <button class="nav-btn" onclick="window.location.href='/'">
+        <i data-lucide="grid" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Rooms</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/tickets'">
+        <i data-lucide="ticket" style="width:20px;height:20px;"></i>
+        <span class="nav-label">My Tickets</span>
+      </button>
+      <button class="nav-btn" onclick="window.location.href='/winners'">
+        <i data-lucide="trophy" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Winners</span>
+      </button>
+      <button class="nav-btn active">
+        <i data-lucide="user" style="width:20px;height:20px;"></i>
+        <span class="nav-label">Account</span>
+      </button>
+    </nav>
+  </div>
+
+  <script>
+    const TOKEN = localStorage.getItem('sparklotto_token');
+    if (!TOKEN) window.location.href = '/';
+
+    function toast(msg, type = 'info') {
+      const c = document.getElementById('toast-container');
+      const el = document.createElement('div');
+      el.className = `toast ${type}`;
+      el.textContent = msg;
+      c.appendChild(el);
+      setTimeout(() => el.remove(), 3500);
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, (c) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+    }
+
+    async function api(path, opts = {}) {
+      const res = await fetch(path, {
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + TOKEN },
+        ...opts,
+        body: opts.body ? JSON.stringify(opts.body) : undefined,
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    async function loadMe() {
+      try {
+        const data = await api('/api/auth/me');
+        const u = data.user;
+        document.getElementById('acc-username').textContent = u.username;
+        document.getElementById('acc-balance').textContent = u.balance.toFixed(2);
+        document.getElementById('acc-stats').textContent =
+          `Won: ${u.totalWon.toFixed(2)} · Deposited: ${u.totalDeposited.toFixed(2)} · Withdrawn: ${u.totalWithdrawn.toFixed(2)}`;
+        if (u.walletAddress) document.getElementById('wd-wallet').value = u.walletAddress;
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function loadAddresses() {
+      try {
+        const data = await api('/api/wallet/deposit-address');
+        document.getElementById('deposit-addresses').innerHTML = `
+          <div style="background:var(--bg-dark);border:1px solid var(--bg-border);border-radius:12px;padding:10px;margin-bottom:8px;font-size:11px;">
+            <div style="color:#94a3b8;margin-bottom:4px;">TRC20 (Tron — low fees):</div>
+            <div style="color:white;font-family:monospace;word-break:break-all;">${escapeHtml(data.TRC20)}</div>
+          </div>
+          <div style="background:var(--bg-dark);border:1px solid var(--bg-border);border-radius:12px;padding:10px;margin-bottom:8px;font-size:11px;">
+            <div style="color:#94a3b8;margin-bottom:4px;">ERC20 (Ethereum — higher fees):</div>
+            <div style="color:white;font-family:monospace;word-break:break-all;">${escapeHtml(data.ERC20)}</div>
+          </div>
+        `;
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function loadTransactions() {
+      try {
+        const data = await api('/api/wallet/transactions');
+        const list = document.getElementById('tx-list');
+        if (!data.transactions.length) {
+          list.innerHTML = '<p style="color:#64748b;text-align:center;padding:20px 0;">No transactions yet.</p>';
+          return;
+        }
+        list.innerHTML = data.transactions.map(t => {
+          const color = t.type === 'deposit' ? 'var(--neon)' :
+                        t.type === 'withdraw' ? '#f59e0b' :
+                        t.type === 'prize_win' ? 'var(--neon)' : 'var(--accent)';
+          const sign = t.type === 'withdraw' || t.type === 'ticket_purchase' ? '-' : '+';
+          const status = t.status === 'pending' ? ' (pending)' : t.status === 'rejected' ? ' (rejected)' : '';
+          return `
+            <div style="display:flex;justify-content:space-between;background:var(--bg-card);padding:10px 14px;border-radius:12px;font-size:12px;">
+              <div>
+                <div style="font-weight:700;color:white;text-transform:capitalize;">${t.type.replace('_',' ')}</div>
+                <div style="font-size:10px;color:#64748b;">${new Date(t.createdAt).toLocaleString()}${status}</div>
+              </div>
+              <div style="color:${color};font-weight:800;">${sign}${t.amount.toFixed(2)}</div>
+            </div>
+          `;
+        }).join('');
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function submitDeposit() {
+      const amount = parseFloat(document.getElementById('dep-amount').value);
+      const txHash = document.getElementById('dep-tx').value.trim();
+      if (!amount || amount <= 0) return toast('Enter valid amount', 'error');
+      if (!txHash) return toast('Enter transaction hash', 'error');
+      try {
+        await api('/api/wallet/deposit', { method: 'POST', body: { amount, txHash } });
+        toast('Deposit request submitted! Pending verification.', 'success');
+        document.getElementById('dep-amount').value = '';
+        document.getElementById('dep-tx').value = '';
+        loadTransactions();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    async function submitWithdraw() {
+      const amount = parseFloat(document.getElementById('wd-amount').value);
+      const walletAddress = document.getElementById('wd-wallet').value.trim();
+      if (!amount || amount <= 0) return toast('Enter valid amount', 'error');
+      if (!walletAddress) return toast('Enter wallet address', 'error');
+      try {
+        const res = await api('/api/wallet/withdraw', { method: 'POST', body: { amount, walletAddress } });
+        toast('Withdrawal requested. Support will process shortly.', 'success');
+        document.getElementById('wd-amount').value = '';
+        document.getElementById('acc-balance').textContent = res.newBalance.toFixed(2);
+        loadTransactions();
+      } catch (err) { toast(err.message, 'error'); }
+    }
+
+    function doLogout() {
+      localStorage.removeItem('sparklotto_token');
+      window.location.href = '/';
+    }
+
+    loadMe();
+    loadAddresses();
+    loadTransactions();
+    lucide.createIcons();
+    setInterval(loadMe, 10000);
+  </script>
+</body>
+</html>
