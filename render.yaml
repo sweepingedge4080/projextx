@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: sparklotto
+    runtime: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGO_URI
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: HOUSE_CUT_PERCENT
+        value: 17
+      - key: ADMIN_EMAIL
+        sync: false
+      - key: DEPOSIT_WALLET_USDT_TRC20
+        sync: false
+      - key: DEPOSIT_WALLET_USDT_ERC20
+        sync: false
