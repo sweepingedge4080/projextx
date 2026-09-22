@@ -22,3 +22,5 @@ services:
         sync: false
       - key: DEPOSIT_WALLET_USDT_ERC20
         sync: false
+      - key: DEPOSIT_WALLET_USDT_BEP20
+        sync: false
